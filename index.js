@@ -22,7 +22,7 @@ const API_PASSWORD = 'cnt@123';
 const API_COMPANY_NAME = 'Directorate of Fire Emergency Services';
 const API_PROJECT_ID = 37;
 
-const DIRECTORY_CACHE = path.dirname(__dirname, 'data');
+const DIRECTORY_CACHE = path.join(__dirname, 'data');
 const DIRECTORY_CSV = path.join(__dirname, 'data/csv');
 const FILE_DEBUG_LOG = path.join(__dirname, 'debug-log.txt');
 const FILE_COVERAGE = path.join(__dirname, 'data/coverage.csv');
@@ -354,61 +354,35 @@ function updateDailyCsvLog(trucks) {
 // Function to update coverage CSV
 function updateCoverageCsv(testStatus) {
   const headers = ['Date', 'Filename', 'Updated_At', 'Status'];
-  const csvFiles = fs.readdirSync(DIRECTORY_CSV).filter(f => f.endsWith('.csv') && f.startsWith('goa-fire-trucks-'));
+  const today = getISTDayString();
+  const todayFormatted = `${today.substring(0, 4)}-${today.substring(4, 6)}-${today.substring(6, 8)}`;
+  const todayFilename = `goa-fire-trucks-${today}.csv`;
 
-  // Map files to stats
-  const coverageData = csvFiles.map(filename => {
-    // filename format: goa-fire-trucks-YYYYMMDD.csv
-    // Extract date
-    const match = filename.match(/goa-fire-trucks-(\d{8})\.csv/);
-    const dateStr = match ? match[1] : 'Unknown';
-    // Format date to YYYY-MM-DD for readability
-    const formattedDate = dateStr !== 'Unknown'
-      ? `${dateStr.substring(0, 4)}-${dateStr.substring(4, 6)}-${dateStr.substring(6, 8)}`
-      : dateStr;
+  // Preserve all historical rows; drop stale today entry if any
+  let existingRows = [];
+  if (fs.existsSync(FILE_COVERAGE)) {
+    existingRows = fs.readFileSync(FILE_COVERAGE, 'utf8')
+      .split('\n').slice(1)                             // skip header
+      .filter(line => line.trim())
+      .map(line => {
+        const [date, filename, updatedAt, status] = line.split(',');
+        return { Date: date, Filename: filename, Updated_At: updatedAt, Status: status };
+      })
+      .filter(row => row.Filename !== todayFilename);   // remove today's stale entry
+  }
 
-    const filePath = path.join(DIRECTORY_CSV, filename);
-    const stats = fs.statSync(filePath);
-    const updatedAt = getISTISOString(stats.mtime);
+  const coverageData = [
+    { Date: todayFormatted, Filename: todayFilename, Updated_At: getISTISOString(), Status: testStatus },
+    ...existingRows,
+  ];
 
-    // Determine status for this specific file.
-    // If it's today's file, we use the passed testStatus (which reflects current run).
-    // For older files, we probably just say 'ARCHIVED' or keep their last state?
-    // The requirement says: "status with an 'OK' 'NOT OK' based on the result of npm test"
-    // This implies the status of the *latest* run for that day?
-    // Since we are regenerating coverage.csv every time, we need to decide what to put for older files.
-    // Maybe we just check if it was updated recently?
-    // Actually, for past dates, we can't really know the "npm test" status of that day easily unless we logged it.
-    // BUT, the request says "generate/update a daily geojson... create a single index.csv... based on result of npm test".
-    // Let's assume 'Status' refers to the validity of data captured that day.
-    // If this run is for TODAY, and test passed, then TODAY is OK.
-    // If test failed, TODAY is NOT OK.
-
-    let status = (dateStr === getISTDayString()) ? testStatus : (stats.size > headers.join(',').length ? 'OK' : 'EMPTY');
-
-    return {
-      Date: formattedDate,
-      Filename: filename,
-      Updated_At: updatedAt,
-      Status: status
-    };
-  });
-
-  // Sort by date descending
-  coverageData.sort((a, b) => b.Date.localeCompare(a.Date));
-
-  // Write coverage.csv
-  const fileContent = [
+  fs.writeFileSync(FILE_COVERAGE, [
     headers.join(','),
-    ...coverageData.map(row => [
-      row.Date,
-      row.Filename,
-      row.Updated_At,
-      row.Status
-    ].map(escapeCsvField).join(','))
-  ].join('\n');
+    ...coverageData.map(row =>
+      [row.Date, row.Filename, row.Updated_At, row.Status].map(escapeCsvField).join(',')
+    ),
+  ].join('\n'));
 
-  fs.writeFileSync(FILE_COVERAGE, fileContent);
   debugLog(`Coverage CSV updated at ${FILE_COVERAGE}`);
 }
 

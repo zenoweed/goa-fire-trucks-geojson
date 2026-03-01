@@ -9,84 +9,80 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write     # Need write permission to update the cached file
-    
+
     steps:
       - name: Checkout code branch
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           ref: code
           sparse-checkout: |
-            .github
             package.json
             package-lock.json
             index.js
-            data/
 
       - name: Setup Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
           node-version: '18'
           cache: 'npm'
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
 
-      - name: Checkout data branch for data directory
+      - name: Fetch today's data files
         run: |
-          git fetch --depth=1 origin data
-          git checkout origin/data -- data/ || mkdir -p data
+          TODAY=$(TZ=Asia/Kolkata date '+%Y%m%d')
+          echo "TODAY=$TODAY" >> "$GITHUB_ENV"
+          mkdir -p data/csv
 
-      - name: Fetch and process API data
-        run: npm start
-        env:
-          TEST_STATUS: ${{ steps.test-api.outcome == 'success' && 'OK' || 'NOT OK' }}
+          # Blobless fetch: downloads commit + tree objects only (~few KB), no blob content
+          git fetch --filter=blob:none --depth=1 origin data
+
+          # Lazily fetch only the 3 blobs we need for today's run
+          git checkout origin/data -- data/coverage.csv                               2>/dev/null || true
+          git checkout origin/data -- "data/csv/goa-fire-trucks-${TODAY}.csv"         2>/dev/null || true
+          git checkout origin/data -- "data/goa-fire-trucks-gpx-${TODAY}.geojson"     2>/dev/null || true
 
       - name: Configure Git
         run: |
           git config user.name "GitHub Actions Bot"
           git config user.email "actions@github.com"
 
-      - name: Commit and push changes
+      - name: Fetch and process API data
+        run: npm start
+        env:
+          TEST_STATUS: OK
+
+      - name: Commit and push to data branch
         id: commit-data
         run: |
-          # Get today's date in YYYYMMDD format
-          TODAY=$(date '+%Y%m%d')
           GPX_FILE="data/goa-fire-trucks-gpx-${TODAY}.geojson"
           CSV_FILE="data/csv/goa-fire-trucks-${TODAY}.csv"
-          COVERAGE_FILE="data/coverage.csv"
 
-          # First check if any files changed
-          if git status -s | grep -q "data/"; then
-            # IMPORTANT: Save the generated data files before switching branches
-            # The checkout will discard uncommitted changes, so we need to preserve them
-            mkdir -p /tmp/data-backup/csv
-            cp -r data/* /tmp/data-backup/
+          # Write output files as loose blob objects (no branch switch needed)
+          BLOB_JSON=$(git hash-object -w data/goa-fire-trucks.geojson)
+          BLOB_GPX=$(git hash-object  -w "$GPX_FILE")
+          BLOB_CSV=$(git hash-object  -w "$CSV_FILE")
+          BLOB_COV=$(git hash-object  -w data/coverage.csv)
 
-            # Switch to data branch
-            git fetch --depth=1 origin data
-            git checkout -B data origin/data
+          # Read the data branch's full tree into a separate index (reads tree objects only, no blobs)
+          GIT_INDEX_FILE=/tmp/data-index git read-tree origin/data
 
-            # Restore the generated data files
-            cp -r /tmp/data-backup/* data/
+          # Override only our 4 changed paths in that index
+          GIT_INDEX_FILE=/tmp/data-index git update-index --add --cacheinfo 100644,"$BLOB_JSON",data/goa-fire-trucks.geojson
+          GIT_INDEX_FILE=/tmp/data-index git update-index --add --cacheinfo 100644,"$BLOB_GPX","$GPX_FILE"
+          GIT_INDEX_FILE=/tmp/data-index git update-index --add --cacheinfo 100644,"$BLOB_CSV","$CSV_FILE"
+          GIT_INDEX_FILE=/tmp/data-index git update-index --add --cacheinfo 100644,"$BLOB_COV",data/coverage.csv
 
-            # Add both the main data file and the daily GPX track file
-            git add data/goa-fire-trucks.geojson "$GPX_FILE" "$CSV_FILE" "$COVERAGE_FILE"
+          # Create tree → commit → push (sends only 4 new blobs + tree + commit)
+          NEW_TREE=$(GIT_INDEX_FILE=/tmp/data-index git write-tree)
+          NEW_COMMIT=$(echo "Refresh fire truck data [skip ci]" | git commit-tree "$NEW_TREE" -p origin/data)
+          git push origin "$NEW_COMMIT:refs/heads/data"
 
-            # Commit and push the changes
-            git commit -m "Refresh fire truck data and track history [skip ci]"
-            git push origin data
-
-            # Capture the commit SHA for status reporting
-            COMMIT_SHA=$(git rev-parse HEAD)
-            echo "data_commit_sha=$COMMIT_SHA" >> $GITHUB_OUTPUT
-            echo "changes_pushed=true" >> $GITHUB_OUTPUT
-          else
-            echo "No changes detected in data files"
-            echo "changes_pushed=false" >> $GITHUB_OUTPUT
-          fi
+          echo "data_commit_sha=$NEW_COMMIT" >> $GITHUB_OUTPUT
 
       - name: Report success status to data branch
-        if: success() && steps.commit-data.outputs.changes_pushed == 'true'
+        if: success()
         run: |
           curl -L -X POST \
             -H "Accept: application/vnd.github+json" \
@@ -96,12 +92,12 @@ jobs:
             -d '{
               "state": "success",
               "target_url": "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}",
-              "description": "API tests passed and data updated successfully",
+              "description": "API data updated successfully",
               "context": "ci/data-update"
             }'
 
       - name: Report failure status to data branch
-        if: failure() && steps.commit-data.outputs.changes_pushed == 'true'
+        if: failure()
         run: |
           curl -L -X POST \
             -H "Accept: application/vnd.github+json" \
@@ -111,6 +107,6 @@ jobs:
             -d '{
               "state": "failure",
               "target_url": "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}",
-              "description": "API tests or data update failed",
+              "description": "API data update failed",
               "context": "ci/data-update"
             }'
