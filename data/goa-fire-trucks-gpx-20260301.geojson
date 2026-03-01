@@ -4,7 +4,7 @@
     "date": "20260301",
     "source": "Directorate of Fire Emergency Services, Govt. of Goa",
     "description": "Daily GPS tracks of fire trucks",
-    "lastUpdated": "2026-03-01T06:22:11.885Z",
+    "lastUpdated": "2026-03-01T06:31:23.630Z",
     "count": 51
   },
   "features": [
@@ -35,6 +35,10 @@
           [
             73.91407,
             15.500418
+          ],
+          [
+            73.934021,
+            15.49229
           ]
         ]
       },
@@ -43,7 +47,7 @@
         "Vehicle_Name": "TS101",
         "Branch": "Fire Station Old Goa",
         "created": "01-03-2026 11:40:56+05:30",
-        "lastUpdated": "01-03-2026 11:40:56+05:30"
+        "lastUpdated": "01-03-2026 12:01:18+05:30"
       }
     },
     {
@@ -252,6 +256,10 @@
           [
             73.9698966,
             15.269425
+          ],
+          [
+            73.970035,
+            15.2693733
           ]
         ]
       },
@@ -260,7 +268,7 @@
         "Vehicle_Name": "5035",
         "Branch": "Fire Station Margao",
         "created": "01-03-2026 11:41:12+05:30",
-        "lastUpdated": "01-03-2026 11:51:51+05:30"
+        "lastUpdated": "01-03-2026 12:00:55+05:30"
       }
     },
     {
@@ -416,6 +424,10 @@
           [
             74.0029856,
             15.4027461
+          ],
+          [
+            74.002975,
+            15.4027222
           ]
         ]
       },
@@ -424,7 +436,7 @@
         "Vehicle_Name": "5026",
         "Branch": "Fire Station Bicholim",
         "created": "01-03-2026 11:39:22+05:30",
-        "lastUpdated": "01-03-2026 11:39:22+05:30"
+        "lastUpdated": "01-03-2026 11:58:29+05:30"
       }
     },
     {
@@ -747,6 +759,10 @@
           [
             74.106405,
             15.2502749
+          ],
+          [
+            74.103785,
+            15.2603583
           ]
         ]
       },
@@ -755,7 +771,7 @@
         "Vehicle_Name": "5035",
         "Branch": "Fire Station Curchorem",
         "created": "01-03-2026 11:41:07+05:30",
-        "lastUpdated": "01-03-2026 11:52:05+05:30"
+        "lastUpdated": "01-03-2026 12:00:49+05:30"
       }
     },
     {
