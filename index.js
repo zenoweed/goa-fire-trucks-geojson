@@ -405,7 +405,7 @@ async function fetchAndCacheData() {
     } else {
       debugLog('No vehicle data found in JSON response or unexpected JSON structure');
       debugLog('Full JSON response:', JSON.stringify(jsonData));
-    }
+     }
 
     // Filter out rows with invalid coordinates
     const validRows = rows.filter(function(row) {
