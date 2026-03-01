@@ -35,8 +35,9 @@ jobs:
           echo "TODAY=$TODAY" >> "$GITHUB_ENV"
           mkdir -p data/csv
 
-          # Blobless fetch: downloads commit + tree objects only (~few KB), no blob content
-          git fetch --filter=blob:none --depth=1 origin data
+          # Blobless fetch: all commits + trees, zero blobs. No --depth=1 so git can
+          # negotiate the push efficiently (shallow clones cause slow pack computation).
+          git fetch --filter=blob:none origin data
 
           # Lazily fetch only the 3 blobs we need for today's run
           git checkout origin/data -- data/coverage.csv                               2>/dev/null || true
